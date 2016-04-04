@@ -31,22 +31,19 @@ import CScreen = config.Screen;
 import Clock = THREE.Clock;
 
 // Setup a Web Worker for Physijs
-
-
-
-
 Physijs.scripts.worker = "/Scripts/lib/Physijs/physijs_worker.js";
 Physijs.scripts.ammo = "/Scripts/lib/Physijs/examples/js/ammo.js";
 var myWorker = new Worker(Physijs.scripts.worker);
-console.log(myWorker);
-
-
 
 // Game Variables
 var scene: scenes.Scene;
 var currentScene: number;
 var renderer: Renderer;
 var camera: PerspectiveCamera;
+
+var scoreValue: number;
+var livesValue: number;
+var highScoreValue: number = 0;
 
 var play: scenes.Play;
 var menu: scenes.Menu;
@@ -58,6 +55,7 @@ var assets: createjs.LoadQueue;
 var manifest = [
     { id: "land", src: "../../Assets/audio/Land.wav" },
     { id: "hit", src: "../../Assets/audio/hit.wav" },
+    { id: "enemy", src: "../../Assets/audio/enemy.wav" },
     { id: "coin", src: "../../Assets/audio/coin.mp3" },
     { id: "jump", src: "../../Assets/audio/Jump.wav" },
     { id: "StartButton", src: "../../Assets/images/StartButton.png"},
@@ -149,6 +147,7 @@ function setupRenderer(): void {
 // Setup main camera for the scene
 function setupCamera(): void {
     camera = new PerspectiveCamera(35, config.Screen.RATIO, 0.1, 100);
+    camera.name = "Main Camera";
     //camera.position.set(0, 10, 30);
     //camera.lookAt(new Vector3(0, 0, 0));
     console.log("Finished setting up Camera...");

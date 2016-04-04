@@ -16,23 +16,32 @@ module scenes {
 
         private blocker: HTMLElement;
         private instructions: HTMLElement;
+
         private spotLight: SpotLight;
+
         private groundGeometry: CubeGeometry;
         private groundPhysicsMaterial: Physijs.Material;
         private groundMaterial: PhongMaterial;
         private ground: Physijs.Mesh;
         private groundTexture: Texture;
         private groundTextureNormal: Texture;
+
+        private enemyGeometry: SphereGeometry;
+        private enemyMaterial: Physijs.Material;
+        private enemy: Physijs.Mesh;
+
         private playerGeometry: CubeGeometry;
         private playerMaterial: Physijs.Material;
         private player: Physijs.Mesh;
         private keyboardControls: objects.KeyboardControls;
         private mouseControls: objects.MouseControls;
         private isGrounded: boolean;
+
         private coinGeometry: Geometry;
         private coinMaterial: Physijs.Material;
         private coins: Physijs.ConcaveMesh[];
         private coinCount: number;
+
         private deathPlaneGeometry: CubeGeometry;
         private deathPlaneMaterial: Physijs.Material;
         private deathPlane: Physijs.Mesh;
@@ -44,8 +53,6 @@ module scenes {
         private stage: createjs.Stage;
         private scoreLabel: createjs.Text;
         private livesLabel: createjs.Text;
-        private scoreValue: number;
-        private livesValue: number;
 
         /**
          * @constructor
@@ -69,6 +76,8 @@ module scenes {
             canvas.setAttribute("width", config.Screen.WIDTH.toString());
             canvas.setAttribute("height", (config.Screen.HEIGHT * 0.1).toString());
             canvas.style.backgroundColor = "#000000";
+            canvas.style.opacity = "0.5";
+            canvas.style.position = "absolute";
         }
 
         /**
@@ -77,7 +86,12 @@ module scenes {
          * @method _initialize
          * @returns void
          */
-        private _initialize(): void {          
+        private _initialize(): void {
+            // initialize score and lives values
+            scoreValue = 0;
+            livesValue = 5;
+            console.log("Initialize score and lives values");
+
             // Create to HTMLElements
             this.blocker = document.getElementById("blocker");
             this.instructions = document.getElementById("instructions");
@@ -85,7 +99,6 @@ module scenes {
 
             // setup canvas for menu scene
             this._setupCanvas();
-
 
             this.coinCount = 10;
             this.prevTime = 0;
@@ -106,13 +119,9 @@ module scenes {
          * @returns void
          */
         private setupScoreboard(): void {
-            // initialize  score and lives values
-            this.scoreValue = 0;
-            this.livesValue = 1;
-
             // Add Lives Label
             this.livesLabel = new createjs.Text(
-                "LIVES: " + this.livesValue,
+                "LIVES: " + livesValue,
                 "40px Consolas",
                 "#ffffff"
             );
@@ -123,7 +132,7 @@ module scenes {
 
             // Add Score Label
             this.scoreLabel = new createjs.Text(
-                "SCORE: " + this.scoreValue,
+                "SCORE: " + scoreValue,
                 "40px Consolas",
                 "#ffffff"
             );
@@ -188,7 +197,26 @@ module scenes {
             this.ground.receiveShadow = true;
             this.ground.name = "Ground";
             this.add(this.ground);
-            console.log("Added Burnt Ground to scene");
+            console.log("Added Ground to scene");
+        }
+
+        /**
+         * Adds the enemy object to the scene
+         * 
+         * @method addEnemy
+         * @return void
+         */
+        private addEnemy(): void {
+            // Enemy Object
+            this.enemyGeometry = new SphereGeometry(1, 32, 32);
+            this.enemyGeometry.scale(1, 1.5, 1);
+            this.enemyMaterial = Physijs.createMaterial(new LambertMaterial({ color: 0xff2200 }), 0.4, 0);
+            this.enemy = new Physijs.SphereMesh(this.enemyGeometry, this.enemyMaterial, 2);
+            this.enemy.position.set(0, 60, -10);
+            this.enemy.castShadow = true;
+            this.enemy.name = "Enemy";
+            this.add(this.enemy);
+            console.log("Added Enemy to Scene");
         }
 
         /**
@@ -218,8 +246,11 @@ module scenes {
          * @return void
          */
         private addDeathPlane(): void {
-            this.deathPlaneGeometry = new BoxGeometry(100, 1, 100);
+            this.deathPlaneGeometry = new BoxGeometry(200, 1, 200);
             this.deathPlaneMaterial = Physijs.createMaterial(new MeshBasicMaterial({ color: 0xff0000 }), 0.4, 0.6);
+            // make deathPlane invisible during play - comment out next two lines during debugging
+            this.deathPlaneMaterial.transparent = true;
+            this.deathPlaneMaterial.opacity = 0;
 
             this.deathPlane = new Physijs.BoxMesh(this.deathPlaneGeometry, this.deathPlaneMaterial, 0);
             this.deathPlane.position.set(0, -10, 0);
@@ -250,11 +281,9 @@ module scenes {
                     self.coins[count].castShadow = true;
                     self.coins[count].name = "Coin";
                     self.setCoinPosition(self.coins[count]);
-                    console.log("Added Coin Mesh to Scene, at position: " + self.coins[count].position);
+                    console.log("Added Coin " + count + " to the Scene");
                 }
             });
-
-
         }
 
         /**
@@ -283,7 +312,7 @@ module scenes {
                 this.mouseControls.enabled = true;
                 this.blocker.style.display = 'none';
             } else {
-                if (this.livesValue <= 0) {
+                if (livesValue <= 0) {
                     this.blocker.style.display = 'none';
                     document.removeEventListener('pointerlockchange', this.pointerLockChange.bind(this), false);
                     document.removeEventListener('mozpointerlockchange', this.pointerLockChange.bind(this), false);
@@ -350,7 +379,6 @@ module scenes {
                             this.isGrounded = false;
                             createjs.Sound.play("jump");
                         }
-
                     }
 
                     this.player.setDamping(0.7, 0.1);
@@ -377,9 +405,17 @@ module scenes {
             }
         }
         
-        private _unpauseSimulation():void {
-            scene.onSimulationResume();
-            console.log("resume simulation");
+        /**
+         * Have the enemy look at the player
+         * 
+         * @method enemyLook
+         * @remove void
+         */
+        private enemyMoveAndLook(): void {
+            this.enemy.lookAt(this.player.position);
+            var direction = new Vector3(0, 0, 5);
+            direction.applyQuaternion(this.enemy.quaternion);
+            this.enemy.applyCentralForce(direction);
         }
 
         // PUBLIC METHODS +++++++++++++++++++++++++++++++++++++++++++
@@ -391,6 +427,9 @@ module scenes {
          * @return void
          */
         public start(): void {
+            // setup the class context to use within events
+            var self = this;
+            
             // Set Up Scoreboard
             this.setupScoreboard();
 
@@ -398,8 +437,6 @@ module scenes {
             this.havePointerLock = 'pointerLockElement' in document ||
                 'mozPointerLockElement' in document ||
                 'webkitPointerLockElement' in document;
-
-
 
             // Check to see if we have pointerLock
             if (this.havePointerLock) {
@@ -426,20 +463,18 @@ module scenes {
             }
 
             // Scene changes for Physijs
-            this.name = "Main";
+            this.name = "Play Scene";
             this.fog = new THREE.Fog(0xffffff, 0, 750);
             this.setGravity(new THREE.Vector3(0, -10, 0));
-
-            // start simulation
-            /*
-            this.addEventListener('update', this._simulateScene);
-            console.log("Start Simulation"); */
 
             // Add Spot Light to the scene
             this.addSpotLight();
 
             // Ground Object
             this.addGround();
+
+            // Add Enemy Object
+            this.addEnemy();
 
             // Add player controller
             this.addPlayer();
@@ -450,46 +485,70 @@ module scenes {
             // Add death plane to the scene
             this.addDeathPlane();
 
-            // Collision Check
-
-
+            // Collision Check with player
             this.player.addEventListener('collision', function(eventObject) {
                 if (eventObject.name === "Ground") {
-                    this.isGrounded = true;
+                    self.isGrounded = true;
                     createjs.Sound.play("land");
                 }
                 if (eventObject.name === "Coin") {
                     createjs.Sound.play("coin");
-                    this.remove(eventObject);
-                    this.setCoinPosition(eventObject);
-                    this.scoreValue += 100;
-                    this.scoreLabel.text = "SCORE: " + this.scoreValue;
+                    self.remove(eventObject);
+                    self.setCoinPosition(eventObject);
+                    scoreValue += 100;
+                    self.scoreLabel.text = "SCORE: " + scoreValue;
                 }
-
+                
                 if (eventObject.name === "DeathPlane") {
                     createjs.Sound.play("hit");
-                    this.livesValue--;
-                    if (this.livesValue <= 0) {
+                    livesValue--;
+                    if (livesValue <= 0) {
                         // Exit Pointer Lock
                         document.exitPointerLock();
-                        this.children = []; // an attempt to clean up
-                        this._isGamePaused = true;
-                        
+                        self.children = []; // an attempt to clean up
+                        self.player.remove(camera);
+
                         // Play the Game Over Scene
                         currentScene = config.Scene.OVER;
                         changeScene();
                     } else {
                         // otherwise reset my player and update Lives
-                        this.livesLabel.text = "LIVES: " + this.livesValue;
-                        this.remove(this.player);
-                        this.player.position.set(0, 30, 10);
-                        this.add(this.player);
+                        self.livesLabel.text = "LIVES: " + livesValue;
+                        self.remove(self.player);
+                        self.player.position.set(0, 30, 10);
+                        self.player.rotation.set(0, 0, 0);
+                        self.add(self.player);
                     }
                 }
-            }.bind(this));
-
+                
+                if(eventObject.name === "Enemy") {
+                    var enemySound = createjs.Sound.play("enemy");
+                    enemySound.volume = 0.1;
+                }
+            }.bind(self));
+            
+            // Collision check for DeathPlane
+            this.deathPlane.addEventListener('collision', function(otherObject){
+                
+                // if a coin falls off the ground, reset
+                if (otherObject.name === "Coin") {
+                    this.remove(otherObject);
+                    this.setCoinPosition(otherObject);
+                }
+                
+                // if the enemy falls off the ground, reset
+                if(otherObject.name === "Enemy") {
+                    self.remove(otherObject);
+                    self.enemy.position.set(0, 60, -10);
+                    self.add(self.enemy);
+                    self.enemy.setLinearVelocity(new Vector3(0, 0, 0));
+                    self.enemyMoveAndLook();
+                }
+            }.bind(self));
+            
             // create parent-child relationship with camera and player
             this.player.add(camera);
+            camera.rotation.set(0, 0, 0);
             camera.position.set(0, 1, 0);
 
             this.simulate();
@@ -523,12 +582,14 @@ module scenes {
             });
 
             this.checkControls();
+
+            this.enemyMoveAndLook();
+
             this.stage.update();
-            
-            if(!this.keyboardControls.paused) {
+
+            if (!this.keyboardControls.paused) {
                 this.simulate();
             }
-            
         }
 
         /**
